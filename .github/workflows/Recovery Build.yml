@@ -170,7 +170,7 @@ jobs:
 
     - name: Notify TG users
       run: |
-          curl -x POST \
+          curl -X POST \
           https://api.telegram.org/bot${{secrets.TELEGRAM_TOKEN}}/sendMessage \
           -d chat_id=${{secrets.TELEGRAM_TARGET}} \
           -d text="Mizumo published a new recovery build!%0A%0A For: ${{github.event.inputs.DEVICE_NAME}}%0AManifest: ${{github.event.inputs.MANIFEST_BRANCH}}" \
