@@ -157,6 +157,7 @@ jobs:
           workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/${{ github.event.inputs.BUILD_TARGET }}.img
           workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.zip
           workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*vendor*.img
+          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.img
         name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
         tag_name: ${{ github.run_id }}
         body: |
@@ -165,3 +166,11 @@ jobs:
           Target: ${{ github.event.inputs.BUILD_TARGET }}.img
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Notify TG users
+      run: |
+          curl -x POST \
+          https://api.telegram.org/bot${{secrets.TELEGRAM_TOKEN}}/sendMessage \
+          -d chat_id=${{secrets.TELEGRAM_TARGET}} \
+          -d text="Mizumo published a new recovery build!%0A%0A For: ${{github.event.inputs.DEVICE_NAME}}%0AManifest: ${{github.event.inputs.MANIFEST_BRANCH}}" \
+          -d reply_markup='{"inline_keyboard": [[{"text": "Download recovery build", "url": https://github.com/MizProject/Build-TWRP/releases/tag/${{github.run_id}}"}]]}'
