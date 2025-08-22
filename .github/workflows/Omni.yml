@@ -3,91 +3,171 @@ name: TWRP Build with Omni
 on:
   workflow_dispatch:
     inputs:
-      OMNI_BRANCH:
-        description: 'Omni manifest branch (e.g., android-12.1)'
+      MANIFEST_URL:
+        description: 'MANIFEST_URL (if want to use SSH keys, use git@github.com:XXXXX)'
+        required: true
+        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni.git'
+      MANIFEST_BRANCH:
+        description: 'MANIFEST_BRANCH'
         required: true
         default: 'twrp-5.1'
       DEVICE_TREE_URL:
-        description: 'URL of your device tree repository'
+        description: 'DEVICE_TREE_URL'
         required: true
         default: 'https://github.com/kareemwael141-dot/twrptreeh532a1'
       DEVICE_TREE_BRANCH:
-        description: 'Branch of your device tree (e.g., android-12.1)'
+        description: 'DEVICE_TREE_BRANCH'
         required: true
         default: 'main'
       DEVICE_PATH:
-        description: 'Path to your device tree (e.g., device/manufacturer/codename)'
+        description: 'DEVICE_PATH'
         required: true
         default: 'device/infinix/h532_a1'
-      DEVICE_NAME:
-        description: 'Device codename (e.g., mydevice)'
-        required: true
-        default: 'h532_a1'
       COMMON_TREE_URL:
-        description: 'URL of your common tree repository (optional)'
-        required: false
-      COMMON_TREE_BRANCH:
-        description: 'Branch of your common tree (optional)'
+        description: 'COMMON_TREE_URL (if no common tree, leave blank)'
         required: false
       COMMON_PATH:
-        description: 'Path to your common tree (optional)'
+        description: 'COMMON_PATH (if no common tree, leave blank)'
         required: false
+      DEVICE_NAME:
+        description: 'DEVICE_NAME'
+        required: true
+        default: 'h532_a1'
+      MAKEFILE_NAME:
+        description: 'MAKEFILE_NAME'
+        required: true
+        default: 'omni_h532_a1'
+      BUILD_TARGET:
+        description: 'BUILD_TARGET'
+        required: true
+        default: 'recovery'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
+    permissions:
+      contents: write
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    - name: Display Run Parameters
+      run: |
+        echo "::group::User Environment Variables"
+        echo "Manifest URL: ${{ github.event.inputs.MANIFEST_URL }}"
+        echo "Manifest Branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
+        echo "Device Tree URL: ${{ github.event.inputs.DEVICE_TREE_URL }}"
+        echo "Device Tree Branch: ${{ github.event.inputs.DEVICE_TREE_BRANCH }}"
+        echo "Device Path: ${{ github.event.inputs.DEVICE_PATH }}"
+        echo "Device Name: ${{ github.event.inputs.DEVICE_NAME }}"
+        echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
+        echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}.img"
+        echo "::endgroup::"
+ 
+    - name: Check Out
+      uses: actions/checkout@v3
+    
+    - name: Cleanup
+      uses: rokibhasansagar/slimhub_actions@main
 
-      - name: Setup Build Environment and Install Repo
-        run: |
-          sudo apt-get update -y
-          sudo add-apt-repository -y multiverse
-          sudo apt-get install -y git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc rsync python3 bc cpio libtinfo5 ccache
+    - name: Prepare the environment
+      run: |
+        sudo apt update
+        sudo apt -y upgrade
+        sudo apt -y install gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc ccache lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev libncurses5 python3 ccache
 
-          curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
-          chmod a+x /usr/local/bin/repo
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+    - name: Install OpenJDK
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '8'
+
+    - name: Setup SSH Keys
+      if: ${{ startsWith(github.event.inputs.MANIFEST_URL, 'git@github.com') }}
+      uses: webfactory/ssh-agent@v0.5.4
+      with:
+          ssh-private-key: |
+              ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Install repo
+      run: |
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        sudo ln -sf ~/bin/repo /usr/bin/repo
+      
+    - name: Initialize repo
+      run: |
+        mkdir workspace
+        cd workspace
+        echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
+        git config --global user.email "kareemwael141@gmail.com"
+        git config --global user.name "kareemwael141-dot"
+        repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+      id: pwd
           
-      - name: Initialize Repo and Sync Sources
-        run: |
-          mkdir twrp-source
-          cd twrp-source
-          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_omni.git -b ${{ github.event.inputs.OMNI_BRANCH }} --depth=1
-          repo sync -c --no-clone-bundle --no-tags --force-sync -j$(nproc --all)
+    - name: Repo Sync
+      run: |
+        repo sync -j$(nproc --all) --force-sync
+      working-directory: workspace
+      
+    - name: Clone device tree
+      run: |
+        git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
-      - name: Clone Device and Common Trees
-        run: |
-          cd twrp-source
-          git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} --depth=1 ${{ github.event.inputs.DEVICE_PATH }}
-          if [[ ! -z "${{ github.event.inputs.COMMON_TREE_URL }}" ]]; then
-            git clone ${{ github.event.inputs.COMMON_TREE_URL }} -b ${{ github.event.inputs.COMMON_TREE_BRANCH }} --depth=1 ${{ github.event.inputs.COMMON_PATH }}
-          fi
+    - name: Clone common tree
+      if: |
+        github.event.inputs.COMMON_TREE_URL != null
+        && github.event.inputs.COMMON_PATH != null
+      run: |
+        git clone ${{ github.event.inputs.COMMON_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.COMMON_PATH }}
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
-      - name: Set up ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.ccache
-          key: ${{ runner.os }}-ccache-${{ github.event.inputs.DEVICE_NAME }}-${{ github.event.inputs.OMNI_BRANCH }}
-          restore-keys: |
-            ${{ runner.os }}-ccache-${{ github.event.inputs.DEVICE_NAME }}-
+    - name: Check Build Tree
+      uses: haya14busa/action-cond@v1
+      id: buildtree
+      with:
+        cond: ${{ github.event.inputs.MANIFEST_BRANCH == 'twrp-11' || github.event.inputs.MANIFEST_BRANCH == 'twrp-12.1' }}
+        if_true: twrp
+        if_false: omni
 
-      - name: Build TWRP
-        run: |
-          cd twrp-source
-          export ALLOW_MISSING_DEPENDENCIES=true
-          export CCACHE_DIR=~/.ccache
-          export CCACHE_EXEC=/usr/bin/ccache
-          ccache -M 50G
-          . build/envsetup.sh
-          lunch omni_${{ github.event.inputs.DEVICE_NAME }}-eng
-          mka recoveryimage
+    - name: Sync Device Dependencies
+      run: |
+        bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies
+        repo sync -j$(nproc --all)
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+      continue-on-error: true
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: twrp-recovery-${{ github.event.inputs.DEVICE_NAME }}
-          path: twrp-source/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recovery.img
+    - name: Set Swap Space
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 12
+
+    - name: Building recovery
+      run: |
+        source build/envsetup.sh
+        export ALLOW_MISSING_DEPENDENCIES=true
+        lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v2
+      with:
+        token: ${{ github.token }}
+        files: | 
+          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/${{ github.event.inputs.BUILD_TARGET }}.img
+          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.zip
+          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*vendor*.img
+          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.img
+        name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
+        tag_name: ${{ github.run_id }}
+        body: |
+          Manifest: ${{ github.event.inputs.MANIFEST_BRANCH }}
+          Device: ${{ github.event.inputs.DEVICE_NAME }}
+          Target: ${{ github.event.inputs.BUILD_TARGET }}.img
+      
+    - name: Notify TG users
+      run: |
+          curl -X POST \
+          https://api.telegram.org/bot${{secrets.TELEGRAM_TOKEN}}/sendMessage \
+          -d chat_id=${{secrets.TELEGRAM_TARGET}} \
+          -d text="Mizumo published a new recovery build!%0A%0A For: ${{github.event.inputs.DEVICE_NAME}}%0AManifest: ${{github.event.inputs.MANIFEST_BRANCH}}" \
+          -d reply_markup='{"inline_keyboard": [[{"text": "Download recovery build", "url": https://github.com/MizProject/Build-TWRP/releases/tag/${{github.run_id}}"}]]}'
