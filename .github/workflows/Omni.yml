@@ -67,9 +67,13 @@ jobs:
         submodules: true
         fetch-depth: 0
         lfs: true
-        # Add the following line to force a case-sensitive checkout
         ref: ${{ github.ref }}
         path: '.'
+
+    - name: Force Case-Sensitive Git
+      run: |
+        git config core.fscache false
+        git config core.ignorecase false
 
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
