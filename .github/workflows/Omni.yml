@@ -22,6 +22,7 @@ on:
       DEVICE_NAME:
         description: 'Device codename (e.g., mydevice)'
         required: true
+        default: 'h532_a1'
       COMMON_TREE_URL:
         description: 'URL of your common tree repository (optional)'
         required: false
