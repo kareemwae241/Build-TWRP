@@ -6,23 +6,19 @@ on:
       OMNI_BRANCH:
         description: 'Omni manifest branch (e.g., android-12.1)'
         required: true
-        default: 'twrp-5.1'
+        default: 'android-12.1'
       DEVICE_TREE_URL:
         description: 'URL of your device tree repository'
         required: true
-        default: 'https://github.com/kareemwael141-dot/twrptreeh532a1'
       DEVICE_TREE_BRANCH:
         description: 'Branch of your device tree (e.g., android-12.1)'
         required: true
-        default: 'main'
       DEVICE_PATH:
         description: 'Path to your device tree (e.g., device/manufacturer/codename)'
         required: true
-        default: 'device/infinix/h532_a1'
       DEVICE_NAME:
         description: 'Device codename (e.g., mydevice)'
         required: true
-        default: 'h532_a1'
       COMMON_TREE_URL:
         description: 'URL of your common tree repository (optional)'
         required: false
@@ -45,7 +41,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo add-apt-repository -y multiverse
-          sudo apt-get install -y git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc rsync python3 bc cpio libtinfo5
+          sudo apt-get install -y git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc rsync python3 bc cpio libtinfo5 ccache
 
           # Install the Repo tool globally
           curl https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo
