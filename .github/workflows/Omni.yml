@@ -63,7 +63,14 @@ jobs:
  
     - name: Check Out
       uses: actions/checkout@v3
-    
+      with:
+        submodules: true
+        fetch-depth: 0
+        lfs: true
+        # Add the following line to force a case-sensitive checkout
+        ref: ${{ github.ref }}
+        path: '.'
+
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
 
